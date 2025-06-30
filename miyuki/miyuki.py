@@ -8,7 +8,6 @@ import threading
 import time
 import sys
 from curl_cffi import requests
-import urllib3
 
 logging.basicConfig(level=logging.DEBUG,
                     format='Miyuki - %(asctime)s - %(levelname)s - %(message)s',
@@ -34,7 +33,7 @@ RETRY = 5
 DELAY = 2
 TIMEOUT = 10
 headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
 }
 
 
@@ -228,7 +227,7 @@ def create_root_folder_if_not_exists(folder_name):
 
 
 def get_movie_uuid(url):
-    html = requests.get(url=url, headers=headers, verify=False).text
+    html = requests.get(url=url, impersonate="chrome").text
 
     with open(TMP_HTML_FILE, "w", encoding="UTF-8") as file:
         file.write(html)
