@@ -10,16 +10,16 @@ import sys
 from curl_cffi import requests
 
 logging.basicConfig(level=logging.DEBUG,
-                    format='Miyuki - %(asctime)s - %(levelname)s - %(message)s',
+                    format='MDLR - %(asctime)s - %(levelname)s - %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
 
 magic_number = 114514
-RECORD_FILE = 'downloaded_urls_miyuki.txt'
-FFMPEG_INPUT_FILE = 'ffmpeg_input_miyuki.txt'
-ERROR_RECORD_FILE = 'error_records_miyuki.txt'
-TMP_HTML_FILE = 'tmp_movie_miyuki.html'
+RECORD_FILE = 'downloaded_urls_mdlr.txt'
+FFMPEG_INPUT_FILE = 'ffmpeg_input_mdlr.txt'
+ERROR_RECORD_FILE = 'error_records_mdlr.txt'
+TMP_HTML_FILE = 'tmp_movie_mdlr.html'
 downloaded_urls = set()
-movie_save_path_root = 'movies_folder_miyuki'
+movie_save_path_root = 'movies_folder_mdlr'
 video_m3u8_prefix = 'https://surrit.com/'
 video_playlist_suffix = '/playlist.m3u8'
 href_regex_movie_collection = r'<a class="text-secondary group-hover:text-primary" href="([^"]+)" alt="'
@@ -39,7 +39,7 @@ headers = {
 
 def display_progress_bar(max_value, counter):
     bar_length = 50
-    current_value = counter.incrementAndGet()
+    current_value = counter.increment_and_get()
     progress = current_value / max_value
     block = int(round(bar_length * progress))
     text = f"\rProgress: [{'#' * block + '-' * (bar_length - block)}] {current_value}/{max_value}"
@@ -52,7 +52,7 @@ class ThreadSafeCounter:
         self._count = 0
         self._lock = threading.Lock()
 
-    def incrementAndGet(self):
+    def increment_and_get(self):
         with self._lock:
             self._count += 1
             return self._count
@@ -231,8 +231,6 @@ def get_movie_uuid(url):
 
     with open(TMP_HTML_FILE, "w", encoding="UTF-8") as file:
         file.write(html)
-
-    logging.info("HTML : " + html)
 
     match = re.search(match_uuid_pattern, html)
 
@@ -675,15 +673,15 @@ def main():
                     'Use the -timeout option to specify the timeout for segment download ( seconds )\n',
 
         epilog='Examples:\n'
-               '  miyuki -plist "https://missav.ws/search/JULIA?filters=uncensored-leak&sort=saved" -limit 50 -ffmpeg\n'
-               '  miyuki -plist "https://missav.ws/search/JULIA?filters=individual&sort=views" -limit 20 -ffmpeg\n'
-               '  miyuki -plist "https://missav.ws/dm132/actresses/JULIA" -limit 20 -ffmpeg -cover\n'
-               '  miyuki -plist "https://missav.ws/playlists/ewzoukev" -ffmpeg -proxy localhost:7890\n'
-               '  miyuki -urls https://missav.ws/sw-950 https://missav.ws/dandy-917\n'
-               '  miyuki -urls https://missav.ws/sw-950 -proxy localhost:7890\n'
-               '  miyuki -auth miyuki@gmail.com miyukiQAQ -ffmpeg\n'
-               '  miyuki -file /home/miyuki/url.txt -ffmpeg\n'
-               '  miyuki -search sw-950 -ffcover\n',
+               '  mdlr -plist "https://missav.ws/search/JULIA?filters=uncensored-leak&sort=saved" -limit 50 -ffmpeg\n'
+               '  mdlr -plist "https://missav.ws/search/JULIA?filters=individual&sort=views" -limit 20 -ffmpeg\n'
+               '  mdlr -plist "https://missav.ws/dm132/actresses/JULIA" -limit 20 -ffmpeg -cover\n'
+               '  mdlr -plist "https://missav.ws/playlists/ewzoukev" -ffmpeg -proxy localhost:7890\n'
+               '  mdlr -urls https://missav.ws/sw-950 https://missav.ws/dandy-917\n'
+               '  mdlr -urls https://missav.ws/sw-950 -proxy localhost:7890\n'
+               '  mdlr -auth mdlr@gmail.com mdlrQAQ -ffmpeg\n'
+               '  mdlr -file /home/mdlr/url.txt -ffmpeg\n'
+               '  mdlr -search sw-950 -ffcover\n',
         formatter_class=argparse.RawTextHelpFormatter,
     )
 
