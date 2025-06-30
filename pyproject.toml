@@ -1,0 +1,54 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sylvain-m-downloader"
+version = "0.0.1"
+description = "A special downloader for self usage."
+
+readme = "README.md"
+
+requires-python = ">=3.10, <3.13"
+license = { text = "MPL-2.0" }
+authors = [
+    { name = "Sylvain Chan", email = "me@sylvain.hk" }
+]
+maintainers = [
+    { name = "Sylvain Chan", email = "me@sylvain.hk" }
+]
+
+classifiers = [
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)",
+    "Topic :: Software Development",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+dependencies = [
+    "curl-cffi",
+    "requests",
+    "tqdm",
+    "pyyaml",
+    "pydub",
+    "numpy",
+    "scipy",
+    "soundfile",
+    "librosa",
+    "pandas",
+    "matplotlib",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["miyuki"]
+
+[project.scripts]
+mdlr = "miyuki.miyuki:main"

@@ -8,6 +8,7 @@ import threading
 import time
 import sys
 from curl_cffi import requests
+import urllib3
 
 logging.basicConfig(level=logging.DEBUG,
                     format='Miyuki - %(asctime)s - %(levelname)s - %(message)s',
@@ -35,20 +36,6 @@ TIMEOUT = 10
 headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
 }
-
-banner = """
- ██████   ██████  ███                        █████       ███ 
-░░██████ ██████  ░░░                        ░░███       ░░░  
- ░███░█████░███  ████  █████ ████ █████ ████ ░███ █████ ████ 
- ░███░░███ ░███ ░░███ ░░███ ░███ ░░███ ░███  ░███░░███ ░░███ 
- ░███ ░░░  ░███  ░███  ░███ ░███  ░███ ░███  ░██████░   ░███ 
- ░███      ░███  ░███  ░███ ░███  ░███ ░███  ░███░░███  ░███ 
- █████     █████ █████ ░░███████  ░░████████ ████ █████ █████
-░░░░░     ░░░░░ ░░░░░   ░░░░░███   ░░░░░░░░ ░░░░ ░░░░░ ░░░░░ 
-                        ███ ░███                             
-                       ░░██████                              
-                        ░░░░░░                               
-"""
 
 
 def display_progress_bar(max_value, counter):
@@ -172,7 +159,6 @@ def generate_mp4_by_ffmpeg(movie_name, final_file_name, cover_as_preview):
             output_file_name
         ]
 
-
     try:
         logging.info("FFmpeg executing...")
         subprocess.run(ffmpeg_command, check=True, stdout=subprocess.DEVNULL)
@@ -180,6 +166,7 @@ def generate_mp4_by_ffmpeg(movie_name, final_file_name, cover_as_preview):
     except subprocess.CalledProcessError as e:
         logging.error(f"Movie name: {movie_name}, FFmpeg execution failed: {e}")
         raise e
+
 
 def generate_input_txt(movie_name, video_offset_max):
     output_file_name = movie_save_path_root + '/' + movie_name + '.mp4'
@@ -195,7 +182,8 @@ def generate_input_txt(movie_name, video_offset_max):
     total_files = video_offset_max + 1
     downloaded_files = find_count
     completion_rate = '{:.2%}'.format(downloaded_files / (total_files))
-    logging.info(f'Total files : {total_files} , downloaded files : {downloaded_files} , completion rate : {completion_rate}')
+    logging.info(
+        f'Total files : {total_files} , downloaded files : {downloaded_files} , completion rate : {completion_rate}')
 
 
 def video_write_jpegs_to_mp4_by_ffmpeg(movie_name, video_offset_max, cover_as_preview, final_file_name):
@@ -210,7 +198,9 @@ def video_download_jpegs(intervals, uuid, resolution, movie_name, video_offset_m
     for interval in intervals:
         start = interval[0]
         end = interval[1]
-        thread = threading.Thread(target=thread_task, args=(start, end, uuid, resolution, movie_name, video_offset_max, retry, delay, timeout))
+        thread = threading.Thread(target=thread_task,
+                                  args=(start, end, uuid, resolution, movie_name, video_offset_max, retry, delay,
+                                        timeout))
         thread_task_list.append(thread)
 
     for thread in thread_task_list:
@@ -243,6 +233,8 @@ def get_movie_uuid(url):
     with open(TMP_HTML_FILE, "w", encoding="UTF-8") as file:
         file.write(html)
 
+    logging.info("HTML : " + html)
+
     match = re.search(match_uuid_pattern, html)
 
     if match:
@@ -254,8 +246,8 @@ def get_movie_uuid(url):
     else:
         logging.error("Failed to match uuid.")
 
-def get_movie_title(movie_html, movie_name):
 
+def get_movie_title(movie_html, movie_name):
     match = re.search(match_title_pattern, movie_html)
 
     if match:
@@ -269,9 +261,11 @@ def get_movie_title(movie_html, movie_name):
 
     return None
 
+
 def write_error_to_text_file(url, e):
     with open(ERROR_RECORD_FILE, "a", encoding="UTF-8") as file:
         file.write(f"Time: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} - URL: {url} - Error: {e}\n")
+
 
 def login_get_cookie(missav_user_info):
     response = requests.post(url='https://missav.ws/api/login', data=missav_user_info, headers=headers, verify=False)
@@ -284,12 +278,14 @@ def login_get_cookie(missav_user_info):
     logging.error("Login failed, check your network connection or account information.")
     exit(magic_number)
 
+
 def find_last_non_empty_line(text):
     lines = text.splitlines()
     for line in reversed(lines):
         if line.strip():
             return line
     raise Exception("Failed to find the last non-empty line in m3u8 playlist.")
+
 
 def already_downloaded(url):
     if os.path.exists(RECORD_FILE):
@@ -300,7 +296,6 @@ def already_downloaded(url):
 
 
 def find_closest(arr, target):
-
     closest_value = arr[0]
     min_diff = abs(arr[0] - target)
 
@@ -313,7 +308,7 @@ def find_closest(arr, target):
     return str(closest_value)
 
 
-def get_final_quality_and_resolution(playlist, quality : str):
+def get_final_quality_and_resolution(playlist, quality: str):
     try:
         matches = re.findall(pattern=RESOLUTION_PATTERN, string=playlist)
         quality_map = {}
@@ -341,10 +336,9 @@ def get_final_quality_and_resolution(playlist, quality : str):
         return final_quality, resolution_url
 
 
-
 def download(movie_url, download_action=True, write_action=True, ffmpeg_action=False,
-             num_threads=os.cpu_count(), cover_action=True, title_action=False, cover_as_preview=False, quality=None , retry=None, delay=None, timeout=None):
-
+             num_threads=os.cpu_count(), cover_action=True, title_action=False, cover_as_preview=False, quality=None,
+             retry=None, delay=None, timeout=None):
     movie_name = movie_url.split('/')[-1]
 
     if already_downloaded(movie_url):
@@ -450,6 +444,7 @@ def check_auth(auth):
     else:
         return True
 
+
 def check_file(file_path):
     if file_path is None:
         return True
@@ -465,6 +460,7 @@ def check_file(file_path):
 
     return os.path.getsize(file_path) > 0
 
+
 def check_positive_integer(limit):
     if limit is None:
         return True
@@ -474,12 +470,12 @@ def check_positive_integer(limit):
 
     return False
 
+
 def validate_args(args):
     urls = args.urls
     auth = args.auth
     plist = args.plist
     limit = args.limit
-    ffmpeg = args.ffmpeg
     ffcover = args.ffcover
     search = args.search
     file = args.file
@@ -487,10 +483,6 @@ def validate_args(args):
     retry = args.retry
     delay = args.delay
     timeout = args.timeout
-
-    if not check_ffmpeg_command(ffmpeg):
-        logging.error("FFmpeg command status error.")
-        exit(magic_number)
 
     if not check_ffmpeg_command(ffcover):
         logging.error("FFmpeg command status error.")
@@ -529,6 +521,7 @@ def validate_args(args):
         logging.error("The -timeout option accepts only positive integers.")
         exit(magic_number)
 
+
 def loop_fill_movie_urls_by_page(playlist_url, movie_url_list, limit, cookie):
     while playlist_url:
         html_source = requests.get(url=playlist_url, headers=headers, verify=False, cookies=cookie).text
@@ -544,6 +537,7 @@ def loop_fill_movie_urls_by_page(playlist_url, movie_url_list, limit, cookie):
             playlist_url = next_page_matches[0].replace('&amp;', '&')
         else:
             break
+
 
 def get_public_playlist(playlist_url, limit):
     movie_url_list = []
@@ -572,11 +566,13 @@ def get_movie_url_by_search(key):
     else:
         return None
 
+
 def get_urls_from_file(file):
     with open(file, 'r', encoding='utf-8') as file:
         urls = file.readlines()
     urls = [url.strip() for url in urls]
     return urls
+
 
 def execute_download(args):
     urls = args.urls
@@ -584,7 +580,8 @@ def execute_download(args):
     plist = args.plist
     limit = args.limit
     proxy = args.proxy
-    ffmpeg = args.ffmpeg
+    # ffmpeg = args.ffmpeg
+    ffmpeg = True
     cover = args.cover
     ffcover = args.ffcover
     search = args.search
@@ -639,7 +636,6 @@ def execute_download(args):
         for url in movie_urls:
             logging.info(url)
 
-
     if (len(movie_urls) == 0):
         logging.error("No urls found.")
         exit(magic_number)
@@ -648,7 +644,8 @@ def execute_download(args):
         delete_all_subfolders(movie_save_path_root)
         try:
             logging.info("Processing URL: " + url)
-            download(url, ffmpeg_action=ffmpeg, cover_action=cover, title_action=title, cover_as_preview=ffcover, quality=quality, retry=retry, delay=delay, timeout=timeout)
+            download(url, ffmpeg_action=ffmpeg, cover_action=cover, title_action=title, cover_as_preview=ffcover,
+                     quality=quality, retry=retry, delay=delay, timeout=timeout)
             logging.info("Processing URL Complete: " + url)
         except Exception as e:
             logging.error(f"Failed to download the movie: {url}, error: {e}")
@@ -670,16 +667,13 @@ def main():
                     'Additional Options:\n'
                     'Use the -limit   option to limit the number of downloads. (Only works with the -plist option.)\n'
                     'Use the -proxy   option to configure http proxy server ip and port.\n'
-                    'Use the -ffmpeg  option to get the best video quality. ( Recommend! )\n'
                     'Use the -cover   option to save the cover when downloading the video\n'
                     'Use the -ffcover option to set the cover as the video preview (ffmpeg required)\n'
-                    'Use the -noban   option to turn off the miyuki banner when downloading the video\n'
                     'Use the -title   option to use the full title as the movie file name\n'
                     'Use the -quality option to specify the movie resolution (360, 480, 720, 1080...)\n'
                     'Use the -retry   option to specify the number of retries for downloading segments\n'
                     'Use the -delay   option to specify the delay before retry ( seconds )\n'
                     'Use the -timeout option to specify the timeout for segment download ( seconds )\n',
-
 
         epilog='Examples:\n'
                '  miyuki -plist "https://missav.ws/search/JULIA?filters=uncensored-leak&sort=saved" -limit 50 -ffmpeg\n'
@@ -694,30 +688,28 @@ def main():
         formatter_class=argparse.RawTextHelpFormatter,
     )
 
-    parser.add_argument('-urls', nargs='+', required=False, metavar='',help='Movie URLs, separate multiple URLs with spaces')
-    parser.add_argument('-auth', nargs='+', required=False, metavar='',help='Username and password, separate with space')
+    parser.add_argument('-urls', nargs='+', required=False, metavar='',
+                        help='Movie URLs, separate multiple URLs with spaces')
+    parser.add_argument('-auth', nargs='+', required=False, metavar='',
+                        help='Username and password, separate with space')
     parser.add_argument('-plist', type=str, required=False, metavar='', help='Public playlist url')
     parser.add_argument('-limit', type=str, required=False, metavar='', help='Limit the number of downloads')
     parser.add_argument('-search', type=str, required=False, metavar='', help='Movie serial number')
     parser.add_argument('-file', type=str, required=False, metavar='', help='File path')
     parser.add_argument('-proxy', type=str, required=False, metavar='', help='HTTP(S) proxy')
-    parser.add_argument('-ffmpeg', action='store_true', required=False, help='Enable ffmpeg processing')
     parser.add_argument('-cover', action='store_true', required=False, help='Download video cover')
     parser.add_argument('-ffcover', action='store_true', required=False, help='Set cover as preview (ffmpeg required)')
-    parser.add_argument('-noban', action='store_true', required=False, help='Do not display the banner')
     parser.add_argument('-title', action='store_true', required=False, help='Full title as file name')
     parser.add_argument('-quality', type=str, required=False, metavar='', help='Specify the movie resolution')
-    parser.add_argument('-retry', type=str, required=False, metavar='', help='Number of retries for downloading segments')
+    parser.add_argument('-retry', type=str, required=False, metavar='',
+                        help='Number of retries for downloading segments')
     parser.add_argument('-delay', type=str, required=False, metavar='', help='Delay in seconds before retry')
-    parser.add_argument('-timeout', type=str, required=False, metavar='', help='Timeout in seconds for segment download')
-
+    parser.add_argument('-timeout', type=str, required=False, metavar='',
+                        help='Timeout in seconds for segment download')
 
     args = parser.parse_args()
 
     validate_args(args)
-
-    if not args.noban:
-        print(banner)
 
     execute_download(args)
 
