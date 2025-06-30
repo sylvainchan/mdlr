@@ -236,12 +236,13 @@ def get_movie_uuid(url):
 
     if match:
         result = match.group(1)
-        resule_str_list = result.split("|")
-        uuid = "-".join(resule_str_list[::-1])
+        result_str_list = result.split("|")
+        uuid = "-".join(result_str_list[::-1])
         logging.info("Matching uuid successfully: " + uuid)
         return uuid, html
     else:
         logging.error("Failed to match uuid.")
+        return None
 
 
 def get_movie_title(movie_html, movie_name):
