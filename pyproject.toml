@@ -9,7 +9,7 @@ description = "A special downloader for self usage."
 
 readme = "README.md"
 
-requires-python = ">=3.10, <3.13"
+requires-python = ">=3.10, <=3.13"
 license = { text = "MPL-2.0" }
 authors = [
     { name = "Sylvain Chan", email = "me@sylvain.hk" }
