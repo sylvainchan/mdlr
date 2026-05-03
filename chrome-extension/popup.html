@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MDLR Downloader</title>
+  <style>
+    body {
+      width: 300px;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+    }
+    h2 {
+      margin: 0 0 12px;
+      font-size: 16px;
+      color: #e94560;
+    }
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #444;
+      background: #16213e;
+      color: #e0e0e0;
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+    label {
+      display: block;
+      font-size: 11px;
+      color: #888;
+      margin-bottom: 3px;
+    }
+    button {
+      width: 100%;
+      padding: 9px;
+      border-radius: 6px;
+      border: none;
+      background: #e94560;
+      color: white;
+      font-size: 14px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    button:hover { opacity: 0.85; }
+    #status {
+      margin-top: 10px;
+      font-size: 12px;
+      min-height: 20px;
+      color: #aaa;
+    }
+    #status.success { color: #4caf50; }
+    #status.error   { color: #e94560; }
+    #log-container {
+      display: none;
+      margin-top: 12px;
+      background: #0f0f1a;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 8px;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+    #log-container.visible { display: block; }
+    #log-lines {
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #ccc;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .progress-wrap {
+      display: none;
+      margin-top: 10px;
+      background: #16213e;
+      border-radius: 4px;
+      height: 6px;
+      overflow: hidden;
+    }
+    .progress-wrap.visible { display: block; }
+    #progress-bar {
+      height: 100%;
+      width: 0%;
+      background: #e94560;
+      transition: width 0.3s ease;
+    }
+    #progress-label {
+      font-size: 11px;
+      color: #888;
+      margin-top: 4px;
+      display: none;
+    }
+    #progress-label.visible { display: block; }
+    .server-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      margin-bottom: 12px;
+    }
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #888;
+    }
+    .dot.online  { background: #4caf50; }
+    .dot.offline { background: #e94560; }
+  </style>
+</head>
+<body>
+  <h2>⬇️ MDLR Downloader</h2>
+  <div class="server-status">
+    <span class="dot" id="dot"></span>
+    <span id="server-label">檢查 Server...</span>
+  </div>
+  <label for="url-input">影片 URL</label>
+  <input type="text" id="url-input" placeholder="https://missav.ws/..." />
+  <label for="dest-input">儲存位置</label>
+  <input type="text" id="dest-input" placeholder="例：/Users/you/Downloads/mdlr" />
+  <button id="download-btn">開始下載</button>
+  <div id="status"></div>
+  <div class="progress-wrap" id="progress-wrap"><div id="progress-bar"></div></div>
+  <div id="progress-label"></div>
+  <div id="log-container"><div id="log-lines"></div></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

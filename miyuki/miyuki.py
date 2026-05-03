@@ -355,10 +355,16 @@ def create_root_folder_if_not_exists(folder_name):
 def get_movie_uuid(url):
     html = requests.get(url=url, impersonate="chrome").text
     movie_name = url.split("/")[-1]
-    with open(f"tmp_{movie_name}_mdlr.html", "w", encoding="UTF-8") as file:
+    tmp_file = f"tmp_{movie_name}_mdlr.html"
+    with open(tmp_file, "w", encoding="UTF-8") as file:
         file.write(html)
 
     match = re.search(match_uuid_pattern, html)
+
+    try:
+        os.remove(tmp_file)
+    except OSError:
+        pass
 
     if match:
         result = match.group(1)
