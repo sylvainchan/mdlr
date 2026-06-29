@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+movies_folder_mdlr/
+downloaded_urls_mdlr.txt
+error_records_mdlr.txt
+ffmpeg_input_*_mdlr.txt
+tmp_*_mdlr.html
+*.egg-info/
+dist/
+build/
+.eggs/
