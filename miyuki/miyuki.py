@@ -9,6 +9,7 @@ import time
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from curl_cffi import requests, Session
+from urllib.parse import urlparse
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -40,19 +41,24 @@ TIMEOUT = 10
 NUM_DOWNLOAD_WORKERS = 32
 MAX_PARALLEL_URLS = 3
 _thread_local = threading.local()
+MISSAV_BASE_URL = "https://missav.ws"
+
+
+def _make_headers(referer_url: str | None = None):
+    """Build request headers, optionally pinned to a specific Referer/Origin."""
+    hdrs = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+    }
+    base = referer_url or MISSAV_BASE_URL
+    hdrs["Referer"] = base + "/"
+    hdrs["Origin"] = base
+    return hdrs
 
 
 def _get_session():
     if not hasattr(_thread_local, "session"):
-        _thread_local.session = Session(impersonate="chrome")
+        _thread_local.session = Session(impersonate="chrome110")
     return _thread_local.session
-
-
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
-    "Referer": "https://missav.ws/",
-    "Origin": "https://missav.ws",
-}
 
 
 class ProgressManager:
@@ -62,6 +68,7 @@ class ProgressManager:
         self._lock = threading.Lock()
         self._slots: dict = {}  # movie_name -> slot index (0-based)
         self._reserved = False
+        self._tty = sys.stdout.isatty()
 
     def reset(self):
         with self._lock:
@@ -74,8 +81,17 @@ class ProgressManager:
                 self._slots[movie_name] = len(self._slots)
 
     def update(self, movie_name, current, total):
+        if not self._tty:
+            if current % max(total // 20, 1) == 1 or current == total:
+                logging.info(
+                    "[%s] %d/%d (%.0f%%)",
+                    movie_name[-30:], current, total,
+                    (current / total * 100) if total > 0 else 0
+                )
+            return
+
         bar_length = 40
-        progress = current / total
+        progress = current / total if total > 0 else 0
         block = int(round(bar_length * progress))
         label = movie_name[-20:] if len(movie_name) > 20 else movie_name.ljust(20)
         bar = "#" * block + "-" * (bar_length - block)
@@ -126,6 +142,8 @@ class ThreadSafeCounter:
 
 counter = ThreadSafeCounter()
 _record_lock = threading.Lock()
+_download_urls_lock = threading.Lock()
+_download_urls_loaded = False
 
 
 def https_request_with_retry(request_url, retry, delay, timeout):
@@ -143,7 +161,7 @@ def https_request_with_retry(request_url, retry, delay, timeout):
     while retries < inner_retry:
         try:
             response = session.get(
-                url=request_url, headers=headers, timeout=inner_timeout
+                url=request_url, headers=_make_headers(), timeout=inner_timeout
             ).content
             return response
         except Exception:
@@ -181,6 +199,7 @@ def video_write_jpegs_to_mp4(movie_name, video_offset_max, final_file_name):
     movie_file_name = final_file_name + ".mp4"
     output_file_name = movie_save_path_root + "/" + movie_file_name
     saved_count = 0
+    missing_count = 0
     with open(output_file_name, "wb") as outfile:
         for i in range(video_offset_max + 1):
             file_path = (
@@ -189,22 +208,21 @@ def video_write_jpegs_to_mp4(movie_name, video_offset_max, final_file_name):
             try:
                 with open(file_path, "rb") as infile:
                     outfile.write(infile.read())
-                    saved_count = saved_count + 1
-                    print("write: " + file_path)
+                    saved_count += 1
+                    logging.debug("write: %s", file_path)
             except FileNotFoundError:
-                print("file not found: " + file_path)
+                missing_count += 1
+                logging.warning("file not found: %s", file_path)
                 continue
             except Exception as e:
-                print("exception: " + str(e))
+                logging.error("exception writing %s: %s", file_path, e)
                 continue
 
     logging.info("Save Completed: " + output_file_name)
-    logging.info(
-        f"Total number of files: {video_offset_max + 1} , number of files saved: {saved_count}"
-    )
-    logging.info(
-        "The file integrity is {:.2%}".format(saved_count / (video_offset_max + 1))
-    )
+    total = video_offset_max + 1
+    logging.info("Total files: %d, saved: %d, missing: %d", total, saved_count, missing_count)
+    if total > 0:
+        logging.info("File integrity is {:.2%}".format(saved_count / total))
 
 
 def generate_mp4_by_ffmpeg(
@@ -214,7 +232,6 @@ def generate_mp4_by_ffmpeg(
     output_file_name = movie_save_path_root + "/" + movie_file_name
     cover_file_name = movie_save_path_root + "/" + movie_name + "-cover.jpg"
     if cover_as_preview and os.path.exists(cover_file_name):
-        # ffmpeg -i video.mp4 -i cover.jpg -map 1 -map 0 -c copy -disposition:0 attached_pic output.mp4
         ffmpeg_command = [
             "ffmpeg",
             "-loglevel",
@@ -276,15 +293,15 @@ def generate_input_txt(movie_name, video_offset_max):
                 movie_save_path_root + "/" + movie_name + "/video" + str(i) + ".jpeg"
             )
             if os.path.exists(file_path):
-                find_count = find_count + 1
+                find_count += 1
                 input_txt.write(f"file '{file_path}'\n")
 
-    print()
     total_files = video_offset_max + 1
     downloaded_files = find_count
-    completion_rate = "{:.2%}".format(downloaded_files / (total_files))
+    completion_rate = "{:.2%}".format(downloaded_files / total_files if total_files > 0 else 0)
     logging.info(
-        f"Total files : {total_files} , downloaded files : {downloaded_files} , completion rate : {completion_rate}"
+        "Total files: %d, downloaded: %d, completion rate: %s",
+        total_files, downloaded_files, completion_rate
     )
     return ffmpeg_input_file
 
@@ -353,18 +370,8 @@ def create_root_folder_if_not_exists(folder_name):
 
 
 def get_movie_uuid(url):
-    html = requests.get(url=url, impersonate="chrome").text
-    movie_name = url.split("/")[-1]
-    tmp_file = f"tmp_{movie_name}_mdlr.html"
-    with open(tmp_file, "w", encoding="UTF-8") as file:
-        file.write(html)
-
+    html = requests.get(url=url, impersonate="chrome110").text
     match = re.search(match_uuid_pattern, html)
-
-    try:
-        os.remove(tmp_file)
-    except OSError:
-        pass
 
     if match:
         result = match.group(1)
@@ -373,8 +380,10 @@ def get_movie_uuid(url):
         logging.info("Matching uuid successfully: " + uuid)
         return uuid, html
     else:
-        logging.error("Failed to match uuid.")
-        return None
+        logging.error("Failed to match uuid for URL: %s", url)
+        snippet = html[:300].replace("\n", " ").strip()
+        logging.error("Page HTML preview (first 300 chars): %s", snippet)
+        return None, None
 
 
 def get_movie_title(movie_html, movie_name):
@@ -401,9 +410,9 @@ def write_error_to_text_file(url, e):
 
 def login_get_cookie(missav_user_info):
     response = requests.post(
-        url="https://missav.ws/api/login",
+        url=MISSAV_BASE_URL + "/api/login",
         data=missav_user_info,
-        headers=headers,
+        headers=_make_headers(),
         verify=False,
     )
     if response.status_code == 200:
@@ -425,10 +434,14 @@ def find_last_non_empty_line(text):
 
 
 def already_downloaded(url):
-    if os.path.exists(RECORD_FILE):
-        with open(RECORD_FILE, "r", encoding="utf-8") as file:
-            for line in file:
-                downloaded_urls.add(line.strip())
+    global _download_urls_loaded
+    with _download_urls_lock:
+        if not _download_urls_loaded:
+            if os.path.exists(RECORD_FILE):
+                with open(RECORD_FILE, "r", encoding="utf-8") as file:
+                    for line in file:
+                        downloaded_urls.add(line.strip())
+            _download_urls_loaded = True
     return url in downloaded_urls
 
 
@@ -503,7 +516,7 @@ def download(
 
     playlist_url = video_m3u8_prefix + movie_uuid + video_playlist_suffix
 
-    playlist = requests.get(url=playlist_url, headers=headers, verify=False).text
+    playlist = requests.get(url=playlist_url, headers=_make_headers(), verify=False, impersonate="chrome110").text
 
     final_quality, resolution_url = get_final_quality_and_resolution(playlist, quality)
 
@@ -514,7 +527,7 @@ def download(
     video_m3u8_url = video_m3u8_prefix + movie_uuid + "/" + resolution_url
 
     # video.m3u8 records all jpeg video units of the video
-    video_m3u8 = requests.get(url=video_m3u8_url, headers=headers, verify=False).text
+    video_m3u8 = requests.get(url=video_m3u8_url, headers=_make_headers(), verify=False, impersonate="chrome110").text
 
     # In the penultimate line of video.m3u8, find the maximum jpeg video unit number of the video
     video_offset_max_str = video_m3u8.splitlines()[-2]
@@ -537,7 +550,7 @@ def download(
         try:
             cover_pic_url = f"https://fivetiu.com/{movie_name}/cover-n.jpg"
             cover_pic = requests.get(
-                url=cover_pic_url, headers=headers, verify=False
+                url=cover_pic_url, headers=_make_headers(), verify=False, impersonate="chrome110"
             ).content
             with open(
                 movie_save_path_root + "/" + movie_name + "-cover.jpg", "wb"
@@ -708,7 +721,7 @@ def validate_args(args):
 def loop_fill_movie_urls_by_page(playlist_url, movie_url_list, limit, cookie):
     while playlist_url:
         html_source = requests.get(
-            url=playlist_url, headers=headers, verify=False, cookies=cookie
+            url=playlist_url, headers=_make_headers(), verify=False, cookies=cookie, impersonate="chrome110"
         ).text
         movie_url_matches = re.findall(
             pattern=href_regex_public_playlist, string=html_source
@@ -741,7 +754,7 @@ def get_public_playlist(playlist_url, limit):
 
 def get_movie_collections(cookie):
     movie_url_list = []
-    url = "https://missav.ws/saved"
+    url = MISSAV_BASE_URL + "/saved"
     loop_fill_movie_urls_by_page(
         playlist_url=url, movie_url_list=movie_url_list, limit=None, cookie=cookie
     )
@@ -750,9 +763,9 @@ def get_movie_collections(cookie):
 
 
 def get_movie_url_by_search(key):
-    search_url = "https://missav.ws/search/" + key
+    search_url = MISSAV_BASE_URL + "/search/" + key
     search_regex = r'<a href="([^"]+)" alt="' + key + '" >'
-    html_source = requests.get(url=search_url, headers=headers, verify=False).text
+    html_source = requests.get(url=search_url, headers=_make_headers(), verify=False, impersonate="chrome110").text
     movie_url_matches = re.findall(pattern=search_regex, string=html_source)
     temp_url_list = list(set(movie_url_matches))
     if len(temp_url_list) != 0:
@@ -1015,6 +1028,9 @@ def main():
         metavar="",
         default=None,
         help="Number of URLs to download concurrently (default: auto, up to 3)",
+    )
+    parser.add_argument(
+        "--version", "-v", action="version", version="%(prog)s 0.6.0"
     )
 
     args = parser.parse_args()

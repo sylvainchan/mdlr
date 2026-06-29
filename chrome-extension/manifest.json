@@ -1,13 +1,16 @@
 {
   "manifest_version": 3,
   "name": "MDLR Downloader",
-  "version": "1.0",
+  "version": "1.1",
   "description": "Right-click on a MissAV page to download via miyuki",
+  "minimum_chrome_version": "116",
   "permissions": [
     "contextMenus",
     "activeTab",
     "tabs",
-    "notifications"
+    "notifications",
+    "storage",
+    "alarms"
   ],
   "host_permissions": [
     "http://localhost:8765/*"
@@ -27,5 +30,13 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
+  },
+  "commands": {
+    "download-current-page": {
+      "suggested_key": {
+        "default": "Alt+D"
+      },
+      "description": "Send current page URL to MDLR Server"
+    }
   }
 }

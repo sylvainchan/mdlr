@@ -30,7 +30,7 @@ log = logging.getLogger("mdlr-server")
 # 設定
 # ──────────────────────────────────────────────
 ALLOWED_ORIGINS = {"chrome-extension://"}  # 前綴比對，容許所有 extension ID
-ALLOWED_HOSTS = {"missav.ws", "missav.com", "missav.ai"}  # 限制只接受這些 domain
+ALLOWED_HOST_SUFFIXES = (".missav.ws", ".missav.com", ".missav.ai", "missav.ws", "missav.com", "missav.ai")
 
 DEFAULT_OUTPUT_DIR = os.path.join(os.path.expanduser("~"), "Downloads", "mdlr")
 active_jobs: dict[str, subprocess.Popen] = {}
@@ -48,12 +48,13 @@ PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 # 安全檢查
 # ──────────────────────────────────────────────
 def is_valid_url(url: str) -> bool:
-    """基本 URL 驗證：必須是 http/https，且 host 在白名單內。"""
+    """基本 URL 驗證：必須是 http/https，且 hostname 結尾係白名單內。"""
     try:
         parsed = urlparse(url)
         return (
             parsed.scheme in ("http", "https")
-            and parsed.netloc in ALLOWED_HOSTS
+            and parsed.hostname is not None
+            and parsed.hostname.endswith(ALLOWED_HOST_SUFFIXES)
             and bool(parsed.path)
         )
     except Exception:
@@ -134,11 +135,7 @@ def start_download(url: str, output_dir: str) -> str:
                     buf.pop(0)
         rc = proc.wait()
         log.info("[job:%s] Finished with code %d", job_id, rc)
-        with jobs_lock:
-            active_jobs.pop(job_id, None)
-            if job_id in job_logs:
-                job_logs[job_id]["done"] = True
-                job_logs[job_id]["exit_code"] = rc
+        _finalize_job(job_id, rc)
 
     t = threading.Thread(target=_stream_log, daemon=True)
     t.start()
@@ -147,6 +144,18 @@ def start_download(url: str, output_dir: str) -> str:
         active_jobs[job_id] = proc
 
     return job_id
+
+
+# ──────────────────────────────────────────────
+# Job cleanup helper（避免 _stream_log 同 do_DELETE 重複邏輯）
+# ──────────────────────────────────────────────
+def _finalize_job(job_id: str, exit_code: int):
+    with jobs_lock:
+        active_jobs.pop(job_id, None)
+        if job_id in job_logs:
+            job_logs[job_id]["done"] = True
+            if job_logs[job_id]["exit_code"] is None:
+                job_logs[job_id]["exit_code"] = exit_code
 
 
 # ──────────────────────────────────────────────
@@ -160,7 +169,7 @@ class Handler(BaseHTTPRequestHandler):
         origin = self.headers.get("Origin", "")
         if is_allowed_origin(origin):
             self.send_header("Access-Control-Allow-Origin", origin)
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
     def do_OPTIONS(self):
@@ -195,6 +204,31 @@ class Handler(BaseHTTPRequestHandler):
                 )
         else:
             self._json_response(404, {"error": "Not found"})
+
+    # ── DELETE /jobs/<job_id> ──
+    def do_DELETE(self):
+        if not self.path.startswith("/jobs/"):
+            self._json_response(404, {"error": "Not found"})
+            return
+
+        origin = self.headers.get("Origin", "")
+        if not is_allowed_origin(origin):
+            log.warning("Rejected DELETE from origin: %s", origin)
+            self._json_response(403, {"error": "Forbidden origin"})
+            return
+
+        job_id = self.path[len("/jobs/"):].rstrip("/")
+
+        with jobs_lock:
+            proc = active_jobs.get(job_id)
+            if proc is None:
+                self._json_response(404, {"error": "Job not found"})
+                return
+            proc.terminate()
+
+        log.info("[job:%s] Cancelled by client", job_id)
+        _finalize_job(job_id, -15)
+        self._json_response(200, {"message": "Job cancelled", "job_id": job_id})
 
     # ── POST /download ──
     def do_POST(self):

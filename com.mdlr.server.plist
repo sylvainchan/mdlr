@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- 唯一識別名稱 -->
+  <key>Label</key>
+  <string>com.mdlr.server</string>
+
+  <!-- 執行指令：用 venv python 跑 mdlr-server.py -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/sylvainchan/git/mdlr/.venv/bin/python</string>
+    <string>/Users/sylvainchan/git/mdlr/mdlr-server.py</string>
+  </array>
+
+  <!-- 登入後自動啟動 -->
+  <key>RunAtLoad</key>
+  <true/>
+
+  <!-- crash 後自動重啟 -->
+  <key>KeepAlive</key>
+  <true/>
+
+  <!-- log 輸出 -->
+  <key>StandardOutPath</key>
+  <string>/Users/sylvainchan/Library/Logs/mdlr-server.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/sylvainchan/Library/Logs/mdlr-server.log</string>
+
+  <!-- 工作目錄 -->
+  <key>WorkingDirectory</key>
+  <string>/Users/sylvainchan/git/mdlr</string>
+</dict>
+</plist>

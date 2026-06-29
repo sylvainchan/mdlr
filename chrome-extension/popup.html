@@ -6,7 +6,7 @@
   <title>MDLR Downloader</title>
   <style>
     body {
-      width: 300px;
+      width: 340px;
       padding: 16px;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: #1a1a2e;
@@ -27,6 +27,10 @@
       color: #e0e0e0;
       font-size: 13px;
       margin-bottom: 8px;
+      transition: border-color 0.2s;
+    }
+    input.invalid {
+      border-color: #e94560;
     }
     label {
       display: block;
@@ -34,6 +38,11 @@
       color: #888;
       margin-bottom: 3px;
     }
+    .btn-row {
+      display: flex;
+      gap: 8px;
+    }
+    .btn-row button { flex: 1; }
     button {
       width: 100%;
       padding: 9px;
@@ -45,7 +54,13 @@
       cursor: pointer;
       transition: opacity 0.2s;
     }
-    button:hover { opacity: 0.85; }
+    button:hover:not(:disabled) { opacity: 0.85; }
+    button:disabled { opacity: 0.4; cursor: default; }
+    button.cancel-btn {
+      background: #555;
+      display: none;
+    }
+    button.cancel-btn.visible { display: block; }
     #status {
       margin-top: 10px;
       font-size: 12px;
@@ -109,6 +124,69 @@
     }
     .dot.online  { background: #4caf50; }
     .dot.offline { background: #e94560; }
+    .history-section {
+      margin-top: 14px;
+      border-top: 1px solid #333;
+      padding-top: 10px;
+    }
+    .history-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .history-header span {
+      font-size: 12px;
+      color: #888;
+    }
+    .history-header button {
+      width: auto;
+      padding: 3px 8px;
+      font-size: 10px;
+      background: #333;
+    }
+    #history-list {
+      max-height: 120px;
+      overflow-y: auto;
+      font-size: 11px;
+    }
+    .history-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 6px;
+      margin-bottom: 2px;
+      border-radius: 4px;
+      background: #16213e;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .history-item:hover { background: #1f2f4e; }
+    .history-item .job-id {
+      font-family: monospace;
+      font-size: 10px;
+      color: #e94560;
+    }
+    .history-item .job-url {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin: 0 8px;
+      color: #aaa;
+    }
+    .history-item .job-status {
+      font-size: 10px;
+      flex-shrink: 0;
+    }
+    .job-status.ok  { color: #4caf50; }
+    .job-status.err { color: #e94560; }
+    .history-empty {
+      color: #666;
+      font-size: 11px;
+      text-align: center;
+      padding: 8px;
+    }
   </style>
 </head>
 <body>
@@ -119,13 +197,25 @@
   </div>
   <label for="url-input">影片 URL</label>
   <input type="text" id="url-input" placeholder="https://missav.ws/..." />
+  <div id="url-error" style="display:none; font-size:10px; color:#e94560; margin:-4px 0 6px;"></div>
   <label for="dest-input">儲存位置</label>
   <input type="text" id="dest-input" placeholder="例：/Users/you/Downloads/mdlr" />
-  <button id="download-btn">開始下載</button>
+  <div class="btn-row">
+    <button id="download-btn">開始下載</button>
+    <button class="cancel-btn" id="cancel-btn">取消</button>
+  </div>
   <div id="status"></div>
   <div class="progress-wrap" id="progress-wrap"><div id="progress-bar"></div></div>
   <div id="progress-label"></div>
   <div id="log-container"><div id="log-lines"></div></div>
+
+  <div class="history-section">
+    <div class="history-header">
+      <span>下載記錄</span>
+      <button id="clear-history-btn">清除</button>
+    </div>
+    <div id="history-list"></div>
+  </div>
 
   <script src="popup.js"></script>
 </body>
