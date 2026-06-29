@@ -42,6 +42,19 @@ NUM_DOWNLOAD_WORKERS = 32
 MAX_PARALLEL_URLS = 3
 _thread_local = threading.local()
 MISSAV_BASE_URL = "https://missav.ws"
+MISSAV_MIRROR_DOMAINS = {"missav.ai", "missav.com"}
+
+
+def normalize_movie_url(url: str) -> str:
+    """Rewrite known mirror domains to the primary working domain."""
+    parsed = urlparse(url)
+    hostname = parsed.hostname or ""
+    for mirror in MISSAV_MIRROR_DOMAINS:
+        if hostname == mirror or hostname.endswith("." + mirror):
+            normalized = parsed._replace(netloc=parsed.netloc.replace(mirror, "missav.ws"))
+            logging.info("Normalized URL: %s -> %s", url, normalized.geturl())
+            return normalized.geturl()
+    return url
 
 
 def _make_headers(referer_url: str | None = None):
@@ -57,7 +70,7 @@ def _make_headers(referer_url: str | None = None):
 
 def _get_session():
     if not hasattr(_thread_local, "session"):
-        _thread_local.session = Session(impersonate="chrome110")
+        _thread_local.session = Session(impersonate="chrome131")
     return _thread_local.session
 
 
@@ -370,7 +383,24 @@ def create_root_folder_if_not_exists(folder_name):
 
 
 def get_movie_uuid(url):
-    html = requests.get(url=url, impersonate="chrome110").text
+    url = normalize_movie_url(url)
+    impersonate_targets = ["chrome131", "chrome124", "chrome120", "chrome110"]
+    html = None
+    for target in impersonate_targets:
+        try:
+            resp = requests.get(url=url, impersonate=target, timeout=TIMEOUT)
+            if resp.status_code == 200 and "Just a moment" not in resp.text[:200]:
+                html = resp.text
+                break
+            logging.debug("Impersonate %s returned status %d for %s", target, resp.status_code, url)
+        except Exception as e:
+            logging.debug("Impersonate %s failed for %s: %s", target, url, e)
+            continue
+
+    if html is None:
+        logging.error("Failed to fetch page for URL: %s (all impersonate targets exhausted)", url)
+        return None, None
+
     match = re.search(match_uuid_pattern, html)
 
     if match:
@@ -504,6 +534,7 @@ def download(
     delay=None,
     timeout=None,
 ):
+    movie_url = normalize_movie_url(movie_url)
     movie_name = movie_url.split("/")[-1]
 
     if already_downloaded(movie_url):
